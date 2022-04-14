@@ -94,6 +94,7 @@ output application/json
 				<os:store doc:name="Store" doc:id="14c3e63c-1b4b-467d-a663-5c5a0546ad3c" objectStore="Object_store" key="lastRecord">
 					<os:value ><![CDATA[#[max(payload.ORDER_ID)]]]></os:value>
 				</os:store>
+				<logger level="INFO" doc:name="Logger" doc:id="601628f7-545d-4b7b-8e8c-088873165865" message='#["Complited the for execution...."]'/>
 			</when>
 			<otherwise >
 				<logger level="INFO" doc:name="Logger" doc:id="897a668c-a753-4f10-bb48-9c255a01b369" message='#["No records found this time..."]'/>
