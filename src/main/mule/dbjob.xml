@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:ftp="http://www.mulesoft.org/schema/mule/ftp"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/ftp http://www.mulesoft.org/schema/mule/ftp/current/mule-ftp.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="5bb3b5ef-96d2-4dbe-b084-a7a54bc646c3" >
+		<db:my-sql-connection host="${db.host}" port="${db.port}" user="${db.user}" password="${db.password}" database="${db.database}" />
+	</db:config>
+	<file:config name="File_Config" doc:name="File Config" doc:id="01bcd79c-60fe-4a4b-8042-99b282c4237a" >
+		<file:connection workingDir="E:\records" />
+	</file:config>
+	<os:object-store name="Object_store" doc:name="Object store" doc:id="3568df3e-b478-4b75-929b-c37b307f0a88" />
+	<configuration-properties doc:name="Configuration properties" doc:id="df3f0180-292f-4ae9-aef0-5325d460a4e9" file="${enve}.yaml" />
+	<flow name="dbjobFlow" doc:id="0f36325b-d970-4b9e-b5e6-8c34fadfc9f6" >
+		<scheduler doc:name="Scheduler" doc:id="aa2f8cbe-0313-4d31-ac19-e58d9c596056" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="60" timeUnit="SECONDS"/>
+			</scheduling-strategy>
+		</scheduler>
+		<logger level="INFO" doc:name="Logger" doc:id="3dce622c-bd50-489d-b51b-a446396cd6ee" message="Started the....."/>
+		<os:retrieve doc:name="Retrieve" doc:id="270be8fb-8cb4-4b4b-825f-ca3fa92f95e3" key="lastRecord" objectStore="Object_store">
+			<os:default-value ><![CDATA[0]]></os:default-value>
+		</os:retrieve>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="0dc7979b-3fe8-454e-944e-63bfc3d0292a" variableName="lastRecord"/>
+		<try doc:name="Try" doc:id="85630671-f2ac-4a84-b6ce-1bbbad2e9cf3" >
+			<db:select doc:name="Select" doc:id="31e3bb71-24df-4ce6-b38c-61cd24772ad4" config-ref="Database_Config">
+			<db:sql><![CDATA[select * from order_act where ORDER_ID>:orderid]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	orderid:vars.lastRecord
+}]]]></db:input-parameters>
+		</db:select>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="9f5322a3-3997-4c65-a936-606a49b459a5" type="ANY">
+					<ee:transform doc:name="Transform Message" doc:id="e3841c97-8a65-4a5f-996c-c277905567f3" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	DB_ERROR:error.errorType,
+	DB_ERROR_DESC:error.description
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<choice doc:name="Choice" doc:id="bd015ce8-8019-4e89-bc62-ec4c6d3f102e" >
+			<when expression="#[not isEmpty(payload)]">
+				<foreach doc:name="For Each" doc:id="9f780020-99c5-47f6-8c03-dd49dad50691">
+			<ee:transform doc:name="Transform Message" doc:id="85720ee9-6a4c-43ea-8872-71ee543cfc07">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<set-variable value="#[payload.ORDER_ID as String]" doc:name="Set Variable" doc:id="1c83eb28-ca7e-496f-9916-12746237205c" variableName="orderid" />
+			<try doc:name="Try" doc:id="17b27e02-0d04-4703-b65b-673d20bd0a15" >
+						<file:write doc:name="Write" doc:id="7c4eed6c-bf8f-4343-a5c0-bb711e8d85c8" path='#[vars.orderid ++ "_" ++ (now()) as String {format : "yyyyMMddHHmmss" } ++ ".JSON"]' mode="CREATE_NEW" config-ref="File_Config" />
+						<error-handler >
+							<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="8e205cc2-5c9a-4833-838b-610304d78ee2" type="FILE:ACCESS_DENIED, FILE:CONNECTIVITY, FILE:FILE_ALREADY_EXISTS, FILE:ILLEGAL_PATH">
+								<ee:transform doc:name="Transform Message" doc:id="11c5529e-75a0-4582-88f5-ffd92b5ee503" >
+									<ee:message >
+										<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	Error:error.errorType,
+	Error_Description:error.description
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</on-error-propagate>
+						</error-handler>
+					</try>
+			<choice doc:name="Choice" doc:id="f95bc8ed-2d55-4fdb-a226-2025ee865880">
+				<when expression="#[payload.ORDER_STATUS == 'ENTER']">
+					<logger level="INFO" doc:name="Logger" doc:id="b9ff9968-c189-4d49-940a-38889db3fda6" message="#[payload]" />
+				</when>
+				<otherwise>
+					<logger level="INFO" doc:name="Logger" doc:id="37a6f8ed-86fa-4c83-85cf-76b8a0d92db1" message='#[" No records...."]' />
+				</otherwise>
+			</choice>
+		</foreach>
+				<logger level="INFO" doc:name="Logger" doc:id="3c6c0aca-58ae-4d1c-a833-d0939b68028e" message='#["Retrivel done..."]'/>
+				<os:store doc:name="Store" doc:id="14c3e63c-1b4b-467d-a663-5c5a0546ad3c" objectStore="Object_store" key="lastRecord">
+					<os:value ><![CDATA[#[max(payload.ORDER_ID)]]]></os:value>
+				</os:store>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="897a668c-a753-4f10-bb48-9c255a01b369" message='#["No records found this time..."]'/>
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="Logger" doc:id="cf9a84c5-7538-4c5b-96d6-52bdd48c8768" message='#["task complited...."]'/>
+	</flow>
+</mule>
