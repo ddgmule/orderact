@@ -26,6 +26,7 @@ http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/cu
 		<os:retrieve doc:name="Retrieve" doc:id="270be8fb-8cb4-4b4b-825f-ca3fa92f95e3" key="lastRecord" objectStore="Object_store">
 			<os:default-value ><![CDATA[0]]></os:default-value>
 		</os:retrieve>
+		<logger level="INFO" doc:name="Logger" doc:id="80bff4be-b9e9-45a9-bbe1-5e848e26ceb1" message="#['affter db call....']"/>
 		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="0dc7979b-3fe8-454e-944e-63bfc3d0292a" variableName="lastRecord"/>
 		<try doc:name="Try" doc:id="85630671-f2ac-4a84-b6ce-1bbbad2e9cf3" >
 			<db:select doc:name="Select" doc:id="31e3bb71-24df-4ce6-b38c-61cd24772ad4" config-ref="Database_Config">
